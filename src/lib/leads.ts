@@ -1,10 +1,11 @@
 import type { Bucket, BucketKey, Currency, Filters, Lead, Mode, SortState } from '../types';
 import { CLOSED, DEFAULT_STATUS } from '../data/constants';
-import { CYCLE_START, DAY, TODAY } from './dates';
+import { DAY, TODAY } from './dates';
 import { moneyShort } from './format';
 
 export const isClosed = (l: Lead) => CLOSED.includes(l.status);
-export const isUpdated = (l: Lead) => !!l.reviewed && new Date(l.reviewed) >= CYCLE_START;
+/** Updated = management has saved an update for this lead through the report (back-end "updated" flag / LastReviewedOn). No weekly reset. */
+export const isUpdated = (l: Lead) => !!l.reviewed;
 export const commentCount = (l: Lead) => l.log.filter((e) => e.remark).length;
 
 /** The date that drives the "Due" column for the current report type. */
@@ -22,7 +23,8 @@ export function bucket(dateStr: string, l?: Lead): Bucket {
 
 export interface FilterOptions {
   filters: Filters;
-  cur: Currency;
+  /** Optional currency restriction (not used on the page any more — amounts are never summed across currencies). */
+  cur?: Currency;
   mode: Mode;
   chip: BucketKey | '';
   ignoreChip?: boolean;

@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { Lead, Mode, Role, SortState, View } from '../../types';
-import { CYCLE_START, fmtD, shortDate } from '../../lib/dates';
+import { fmtD } from '../../lib/dates';
 import { bucket, commentCount, compareLeads, dueDate, isClosed, isUpdated, totalsLabel } from '../../lib/leads';
 import { money, plural } from '../../lib/format';
 import { MAX_REVISIONS } from '../../data/constants';
 import { Icon } from '../ui/Icon';
 import { OwnerChip } from '../ui/Avatar';
-import { CountPill, DueBadge, StatusBadge } from '../ui/Badges';
+import { DueBadge, StatusBadge } from '../ui/Badges';
 import { Reveal } from '../ui/Reveal';
 
 interface Props {
   leads: Lead[];
-  mode: Mode;
+  /** Selected tab (chosen in the header). */
   view: View;
-  onView: (v: View) => void;
   sort: SortState;
   onSort: (key: string) => void;
   role: Role;
@@ -22,6 +21,10 @@ interface Props {
   animKey: string;
   revealDelay: number;
 }
+
+/** Due status is based on the Revised Date (expected PO). */
+const MODE: Mode = 'rev';
+const TITLE: Record<View, string> = { upc: 'To be Updated', upd: 'Updated', all: 'All leads' };
 
 const COLUMNS: { id: string; label: string; key: string }[] = [
   { id: 'lead', label: 'Lead / Account', key: 'company' },
@@ -36,20 +39,18 @@ const COLUMNS: { id: string; label: string; key: string }[] = [
   { id: 'act', label: '', key: '' },
 ];
 
-export function LeadsCard({ leads, mode, view, onView, sort, onSort, role, onOpen, animKey, revealDelay }: Props) {
+export function LeadsCard({ leads, view, sort, onSort, role, onOpen, animKey, revealDelay }: Props) {
   const upd = leads.filter(isUpdated);
   const upc = leads.filter((l) => !isUpdated(l));
   const list = view === 'upc' ? upc : view === 'upd' ? upd : leads;
-  const since = shortDate(CYCLE_START);
-  const modeNote = mode === 'fol' ? ' · Sorted by next follow-up.' : mode === 'rev' ? ' · Sorted by revised date.' : '';
   const note =
-    (view === 'upc'
-      ? `Not yet reviewed since ${since}. Click a lead to update it — it then moves to “Updated this cycle”.`
+    view === 'upc'
+      ? 'Leads not yet updated by management. Click a lead to update it — it then moves to “Updated”.'
       : view === 'upd'
-        ? `Reviewed by management since ${since}.`
-        : 'All leads for the selected filters.') + modeNote;
+        ? 'Leads already updated by management.'
+        : 'All leads for the selected filters.';
 
-  // replay row fade-in when the view / report type / currency changes
+  // replay row fade-in when the tab or due-date chip changes
   const [anim, setAnim] = useState(false);
   const [prevKey, setPrevKey] = useState(animKey);
   if (animKey !== prevKey) {
@@ -62,22 +63,12 @@ export function LeadsCard({ leads, mode, view, onView, sort, onSort, role, onOpe
     return () => window.clearTimeout(t);
   }, [anim, animKey]);
 
-  const tabs: { id: View; pill: string; label: string; count: number; tone: 'amber' | '' | 'grey' }[] = [
-    { id: 'upc', pill: 'nUpc', label: 'To update', count: upc.length, tone: 'amber' },
-    { id: 'upd', pill: 'nUpd', label: 'Updated this cycle', count: upd.length, tone: '' },
-    { id: 'all', pill: 'nAll', label: 'All', count: leads.length, tone: 'grey' },
-  ];
-
   return (
     <Reveal as="section" className="card leads" delay={revealDelay} id="leadsCard">
       <div className="lhead">
-        <div className="ltabs" role="tablist" aria-label="Lead list">
-          {tabs.map((t) => (
-            <button key={t.id} role="tab" data-view={t.id} aria-selected={view === t.id} onClick={() => onView(t.id)}>
-              {t.label} <CountPill id={t.pill} value={t.count} tone={t.tone} />
-            </button>
-          ))}
-        </div>
+        <h2 className="ltitle" role="tabpanel" aria-labelledby={`v${view[0].toUpperCase()}${view.slice(1)}`}>
+          {TITLE[view]} <span className="lcount">{list.length} {list.length === 1 ? 'lead' : 'leads'}</span>
+        </h2>
         <span className="spacer" />
         <span className="ltot num" id="ltot">{list.length ? totalsLabel(list) : ''}</span>
       </div>
@@ -103,8 +94,8 @@ export function LeadsCard({ leads, mode, view, onView, sort, onSort, role, onOpe
                 </tr>
               </thead>
               <tbody>
-                {[...list].sort(compareLeads(sort, mode)).map((l) => (
-                  <LeadRow key={l.id} lead={l} mode={mode} canEdit={role === 'mg' && !isClosed(l)} onOpen={onOpen} />
+                {[...list].sort(compareLeads(sort, MODE)).map((l) => (
+                  <LeadRow key={l.id} lead={l} mode={MODE} canEdit={role === 'mg' && !isClosed(l)} onOpen={onOpen} />
                 ))}
               </tbody>
             </table>
@@ -155,7 +146,7 @@ function LeadRow({ lead: l, mode, canEdit, onOpen }: { lead: Lead; mode: Mode; c
             <small>{l.reviewedBy}{nc ? ` · ${plural(nc, 'comment')}` : ''}</small>
           </>
         ) : (
-          <span className="ro empty">Never</span>
+          <span className="ro empty">Not yet</span>
         )}
       </td>
       <td className="go" data-l="">
@@ -166,9 +157,9 @@ function LeadRow({ lead: l, mode, canEdit, onOpen }: { lead: Lead; mode: Mode; c
 }
 
 function EmptyState({ hasLeads, view }: { hasLeads: boolean; view: View }) {
-  const title = hasLeads ? (view === 'upc' ? 'Everything is up to date' : 'Nothing updated yet this cycle') : 'No leads match these filters';
+  const title = hasLeads ? (view === 'upc' ? 'Everything is up to date' : 'Nothing updated yet') : 'No leads match these filters';
   const body = hasLeads
-    ? view === 'upc' ? 'All leads have been reviewed this cycle.' : 'Leads appear here once you save an update.'
+    ? view === 'upc' ? 'Every lead has been updated.' : 'Leads appear here once you save an update.'
     : 'Try clearing a filter or changing the date range.';
   return (
     <div className="empty-state">

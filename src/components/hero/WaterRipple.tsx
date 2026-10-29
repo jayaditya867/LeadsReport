@@ -93,12 +93,16 @@ export function WaterRipple({ hostRef }: { hostRef: RefObject<HTMLElement | null
 
     size();
     window.addEventListener('resize', size);
+    // the header grows/shrinks (e.g. "More filters"), so keep the canvas in sync
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(size) : null;
+    ro?.observe(host);
     host.addEventListener('pointermove', onMove);
     host.addEventListener('pointerdown', onDown);
     const ambient = window.setTimeout(() => add(W * 0.82, H * 0.32, true), 900); // one gentle drop on load
 
     return () => {
       window.removeEventListener('resize', size);
+      ro?.disconnect();
       host.removeEventListener('pointermove', onMove);
       host.removeEventListener('pointerdown', onDown);
       window.clearTimeout(ambient);

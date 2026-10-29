@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { prefersReducedMotion } from '../lib/motion';
 
-const TARGETS = '.btn,.chip,.morebtn,.switch button,.cur button,.seg button,.role button,.link,.pnav button';
+const TARGETS = '.btn,.chip,.morebtn,.switch button,.seg button,.role button,.link';
 
 /** Soft "press" ripple on buttons, chips and segmented controls (document-level, one listener). */
 export function usePressRipple() {

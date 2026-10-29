@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BucketKey, Filters, Mode } from '../../types';
 import { NEW_STAGES, OWNERS, PROPOSAL, REGIONS, SITE, STATUSES, STATUS_LABEL } from '../../data/constants';
-import { CYCLE_START, TODAY, addDays, iso } from '../../lib/dates';
+import { TODAY, WEEK_START, addDays, iso } from '../../lib/dates';
 import { activeFilterCount, moreFilterCount } from '../../lib/leads';
 import { Icon } from '../ui/Icon';
 import { CountPill } from '../ui/Badges';
@@ -37,8 +37,8 @@ export function FilterPanel({ filters: f, onChange, moreOpen, onMoreOpen, matchC
     let from: Date;
     let to: Date;
     if (p === 'week') {
-      from = CYCLE_START;
-      to = addDays(CYCLE_START, 6);
+      from = WEEK_START;
+      to = addDays(WEEK_START, 6);
     } else if (p === 'month') {
       from = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
       to = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0);

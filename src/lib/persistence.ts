@@ -1,5 +1,5 @@
-import type { Currency, DateBasis, Filters } from '../types';
-import { CURRENCIES, DEFAULT_STATUS, PROPOSAL, REGIONS, SITE, STATUSES } from '../data/constants';
+import type { DateBasis, Filters } from '../types';
+import { DEFAULT_STATUS, PROPOSAL, REGIONS, SITE, STATUSES } from '../data/constants';
 import { store } from './storage';
 
 /** Filters persisted on this device (Lead Owner and Search are deliberately not saved — client, 22 Oct). */
@@ -51,9 +51,3 @@ export function saveFilters(f: Filters) {
   const { stage, site, region, state, basis, from, to, month, year } = f;
   store.set('filters', { stage, site, region, state, basis, from, to, month, year } satisfies SavedFilters);
 }
-
-export function loadCurrency(): Currency {
-  const c = store.get<unknown>('cur', 'AED');
-  return typeof c === 'string' && (CURRENCIES as string[]).includes(c) ? (c as Currency) : 'AED';
-}
-

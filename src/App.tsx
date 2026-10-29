@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { BucketKey, Currency, Draft, EditableField, Filters, Lead, Mode, Page, Role, SortState, View } from './types';
+import type { BucketKey, Draft, EditableField, Filters, Lead, Mode, Role, SortState, View } from './types';
 import { DEFAULT_STATUS, FIELD_LABEL, MAX_REVISIONS, MGMT } from './data/constants';
 import { buildDemoLeads } from './data/demoLeads';
 import { TODAY, iso } from './lib/dates';
-import { bucket, dueDate, filterLeads, moreFilterCount } from './lib/leads';
+import { bucket, dueDate, filterLeads, isUpdated, moreFilterCount } from './lib/leads';
 import { store } from './lib/storage';
-import { EMPTY_FILTERS, loadCurrency, loadFilters, saveFilters } from './lib/persistence';
+import { EMPTY_FILTERS, loadFilters, saveFilters } from './lib/persistence';
 import { usePressRipple } from './hooks/usePressRipple';
 import { IconSprite, Icon } from './components/ui/Icon';
 import { ToastProvider, useToast } from './components/ui/Toast';
@@ -13,7 +13,6 @@ import { Hero } from './components/hero/Hero';
 import { KpiTiles } from './components/kpi/KpiTiles';
 import { FilterPanel } from './components/filters/FilterPanel';
 import { LeadsCard } from './components/leads/LeadsCard';
-import { TeamSummary } from './components/team/TeamSummary';
 import { LeadDrawer } from './components/drawer/LeadDrawer';
 import { Skeleton } from './components/ui/Skeleton';
 import logo from './assets/manav-crm-logo.png';
@@ -27,24 +26,23 @@ export default function App() {
   );
 }
 
+/** Due status and due-date chips are based on the Revised Date (expected PO). */
+const MODE: Mode = 'rev';
+
 function PipelineReview() {
   usePressRipple();
   const toast = useToast();
 
   const [leads, setLeads] = useState<Lead[]>(buildDemoLeads);
   const [role, setRole] = useState<Role>('mg');
-  const [page, setPage] = useState<Page>(() => (window.location.hash === '#team' ? 'team' : 'review'));
-  const [mode, setMode] = useState<Mode>('all');
   const [chip, setChip] = useState<BucketKey | ''>('');
   const [view, setView] = useState<View>('upc');
-  const [cur, setCur] = useState<Currency>(loadCurrency);
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const [moreOpen, setMoreOpen] = useState<boolean>(() => store.get('moreOpen', false) || moreFilterCount(loadFilters()) > 0);
   const [sort, setSort] = useState<SortState>({ key: 'due', dir: 1 });
   const [drafts, setDrafts] = useState<Record<number, Draft>>({});
   const [openId, setOpenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [navigated, setNavigated] = useState(false);
 
   // brief skeleton = loading state (as the live app will fetch from SharePoint)
   useEffect(() => {
@@ -54,31 +52,22 @@ function PipelineReview() {
 
   /* ---------- persistence ---------- */
   useEffect(() => saveFilters(filters), [filters]);
-  useEffect(() => store.set('cur', cur), [cur]);
-  useEffect(() => {
-    try {
-      history.replaceState(null, '', `#${page}`);
-    } catch {
-      /* ignore */
-    }
-  }, [page]);
 
   /* ---------- derived lists ---------- */
-  const base = { filters, cur, mode, chip };
-  const filtered = useMemo(() => filterLeads(leads, base), [leads, filters, cur, mode, chip]); // eslint-disable-line react-hooks/exhaustive-deps
-  const noChip = useMemo(() => filterLeads(leads, { ...base, ignoreChip: true }), [leads, filters, cur, mode]); // eslint-disable-line react-hooks/exhaustive-deps
-  const statusFree = useMemo(() => filterLeads(leads, { ...base, ignoreChip: true, ignoreStatus: true }), [leads, filters, cur]); // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(() => filterLeads(leads, { filters, mode: MODE, chip }), [leads, filters, chip]);
+  const noChip = useMemo(() => filterLeads(leads, { filters, mode: MODE, chip, ignoreChip: true }), [leads, filters, chip]);
+  const statusFree = useMemo(() => filterLeads(leads, { filters, mode: MODE, chip, ignoreChip: true, ignoreStatus: true }), [leads, filters, chip]);
 
-  const tabCounts = {
-    all: noChip.length,
-    fol: noChip.filter((l) => bucket(l.follow, l).k === 'over').length,
-    rev: noChip.filter((l) => bucket(l.revised, l).k === 'over').length,
+  const viewCounts: Record<View, number> = {
+    upc: filtered.filter((l) => !isUpdated(l)).length,
+    upd: filtered.filter(isUpdated).length,
+    all: filtered.length,
   };
   const chipCounts = useMemo(() => {
     const c: Record<BucketKey, number> = { over: 0, today: 0, next7: 0, sched: 0, none: 0, closed: 0 };
-    noChip.forEach((l) => c[bucket(dueDate(l, mode), l).k]++);
+    noChip.forEach((l) => c[bucket(dueDate(l, MODE), l).k]++);
     return c;
-  }, [noChip, mode]);
+  }, [noChip]);
 
   /* ---------- actions ---------- */
   const patchFilters = useCallback((patch: Partial<Filters>) => {
@@ -89,15 +78,9 @@ function PipelineReview() {
     });
   }, []);
 
-  const changeMode = (m: Mode, nextChip: BucketKey | '' = '') => {
-    setMode(m);
-    setChip(nextChip);
-  };
-
   const openRevised = (k: 'over' | 'next7' | 'today') => {
     setView('all');
-    setPage('review');
-    changeMode('rev', k);
+    setChip(k);
     window.setTimeout(() => document.getElementById('leadsCard')?.scrollIntoView({ behavior: 'smooth' }), 30);
   };
 
@@ -182,37 +165,24 @@ function PipelineReview() {
     };
     setLeads((all) => all.map((x) => (x.id === id ? updated : x)));
     discard(id);
-    toast(`${l.company} updated and moved to “Updated this cycle”. (Demo — the live app writes this back to the CRM lead.)`);
+    toast(`${l.company} updated and moved to “Updated”. (Demo — the live app writes this back to the CRM lead.)`);
   };
 
   const openLead = openId != null ? leads.find((l) => l.id === openId) ?? null : null;
   const closeDrawer = useCallback(() => setOpenId(null), []);
-  const animKey = `${view}|${mode}|${cur}`;
+  const animKey = `${view}|${chip}`;
 
   return (
     <>
-      <Hero
-        page={page}
-        onPage={(p) => {
-          setNavigated(true);
-          setPage(p);
-        }}
-        role={role}
-        onRole={changeRole}
-        mode={mode}
-        onMode={(m) => changeMode(m)}
-        counts={tabCounts}
-        cur={cur}
-        onCur={setCur}
-      />
+      <Hero role={role} onRole={changeRole} view={view} onView={setView} counts={viewCounts}>
+        {loading ? <Skeleton part="tiles" /> : <KpiTiles statusFree={statusFree} filtered={noChip} onOpenRevised={openRevised} />}
+      </Hero>
 
       <main className="wrap">
         {loading ? (
-          <Skeleton />
+          <Skeleton part="filters" />
         ) : (
           <>
-            <KpiTiles statusFree={statusFree} filtered={noChip} cur={cur} onOpenRevised={openRevised} />
-
             {role === 'sales' && (
               <div className="banner" id="roBanner">
                 <Icon name="lock" />
@@ -228,33 +198,21 @@ function PipelineReview() {
                 setMoreOpen(o);
                 store.set('moreOpen', o);
               }}
-              matchCount={page === 'team' ? noChip.length : filtered.length}
+              matchCount={filtered.length}
               onSaveStatus={() => {
                 store.set('status', filters.status);
                 toast('Status filter saved as your default.');
               }}
               onReset={resetFilters}
-              chips={page === 'review' && mode !== 'all' ? { mode, counts: chipCounts, active: chip, onPick: setChip } : null}
+              chips={{ mode: MODE, counts: chipCounts, active: chip, onPick: setChip }}
             />
-
-            {page === 'review' ? (
-              <LeadsCard
-                key="review"
-                leads={filtered}
-                mode={mode}
-                view={view}
-                onView={setView}
-                sort={sort}
-                onSort={onSort}
-                role={role}
-                onOpen={setOpenId}
-                animKey={animKey}
-                revealDelay={navigated ? 0 : 380}
-              />
-            ) : (
-              <TeamSummary key="team" leads={noChip} cur={cur} />
-            )}
           </>
+        )}
+
+        {loading ? (
+          <Skeleton part="list" />
+        ) : (
+          <LeadsCard leads={filtered} view={view} sort={sort} onSort={onSort} role={role} onOpen={setOpenId} animKey={animKey} revealDelay={380} />
         )}
 
         <p className="foot">

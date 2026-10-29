@@ -26,15 +26,9 @@ export const fmtDateTime = (s: string): string =>
 
 export const isIsoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
 
-/** Weekly update cycle starts on Saturday (management reviews leads every Saturday). */
-export const CYCLE_START: Date = (() => {
+/** Monday of the current calendar week. */
+export const WEEK_START: Date = (() => {
   const d = startOfDay(TODAY);
-  while (d.getDay() !== 6) d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   return d;
 })();
-
-export const shortDate = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-
-export const CYCLE_LABEL = `${shortDate(CYCLE_START)} – ${addDays(CYCLE_START, 6).toLocaleDateString('en-GB', {
-  day: '2-digit', month: 'short', year: 'numeric',
-})} · resets Saturday`;

@@ -1,5 +1,5 @@
 import type { Currency, Lead, LogEntry, Status } from '../types';
-import { CYCLE_START, DAY, TODAY, addDays, iso } from '../lib/dates';
+import { TODAY, addDays, iso } from '../lib/dates';
 import { MGMT, OWNERS, PROPOSAL } from './constants';
 
 /* Illustrative demo data — fictional companies and people. Dates are relative to today. */
@@ -11,7 +11,7 @@ const SCOPE = ['Earthing & lightning protection — supply','LV panel supply —
 const PROJ = ['Awaiting consultant approval','Drawings under review','Tender stage at main contractor','Client finalising budget','Main contractor appointed','Material submittal approved','',''];
 const REMARKS = ['Client asked for another week','Awaiting PO / budget sign-off','Site schedule moved by main contractor'];
 
-/** region, state, currency, status, stage index, value, revised offset, follow-up offset, revision counter, created offset, reviewed day in cycle, site, floor, remark */
+/** region, state, currency, status, stage index, value, revised offset, follow-up offset, revision counter, created offset, updated-through-report (days ago, offset into 2-day steps), site, floor, remark */
 const SPEC: SpecRow[] = [
 ['Dubai','Dubai','AED','Propose',5,420000,-6,-2,1,-95,null,'Structure in progress','G+7',''],
 ['Dubai','Dubai','AED','Propose',7,185000,-1,1,2,-60,null,'Civil work in progress','Basement',''],
@@ -85,15 +85,12 @@ export function buildDemoLeads(): Lead[] {
     let reviewed: string | null = null;
     let reviewedBy = '';
     if (reviewedDay != null) {
-      const on = new Date(CYCLE_START.getTime() + reviewedDay * DAY);
+      // last updated through this report
+      const on = addDays(TODAY, -(2 + reviewedDay * 3));
       on.setHours(10 + (i % 6), 20);
       reviewed = on.toISOString();
       reviewedBy = MGMT[i % 2];
       log.push({ on: reviewed, by: reviewedBy, changes: [{ f: 'Proposal Status', from: PROPOSAL[Math.max(0, stageIdx - 1)], to: PROPOSAL[stageIdx] }], remark: remark || 'Weekly review completed' });
-    } else if (log.length) {
-      const last = log[log.length - 1];
-      reviewed = last.on;
-      reviewedBy = last.by;
     }
     log.sort((a, b) => (a.on < b.on ? -1 : 1));
     return {

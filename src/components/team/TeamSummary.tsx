@@ -7,7 +7,7 @@ import { Icon } from '../ui/Icon';
 import { OwnerChip } from '../ui/Avatar';
 import { Reveal } from '../ui/Reveal';
 
-const HEAD = ['Lead owner', 'Leads', 'Quotations', 'Total value', 'Updated', 'To update', 'Overdue (PO)', 'Next follow-up', 'Comments', 'Date changes'];
+const HEAD = ['Lead owner', 'Leads', 'Quotations', 'Total value', 'Updated', 'To be updated', 'Overdue (PO)', 'Next follow-up', 'Comments', 'Date changes'];
 
 /** Per-salesperson summary (M1 pivot, M2 per-user totals & comment counts). */
 export function TeamSummary({ leads, cur }: { leads: Lead[]; cur: Currency }) {
@@ -43,7 +43,7 @@ export function TeamSummary({ leads, cur }: { leads: Lead[]; cur: Currency }) {
                     <td className="num" data-l="Quotations">{r.filter((l) => QUOTE_STAGES.includes(l.stage)).length}</td>
                     <td className="num" data-l="Total value"><b>{money(sum(r), cur)}</b></td>
                     <td className="num" data-l="Updated">{r.filter(isUpdated).length}</td>
-                    <td className="num" data-l="To update">{r.filter((l) => !isUpdated(l)).length}</td>
+                    <td className="num" data-l="To be updated">{r.filter((l) => !isUpdated(l)).length}</td>
                     <td className="num" data-l="Overdue">{overdue ? <span className="badge b-over">{overdue}</span> : '0'}</td>
                     <td data-l="Next follow-up">{fmtD(nextFollow)}</td>
                     <td className="num" data-l="Comments">{r.reduce((a, l) => a + commentCount(l), 0)}</td>

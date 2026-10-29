@@ -71,11 +71,6 @@ async def set_view(pg, v):
     await pg.wait_for_timeout(150)
 
 
-async def set_cur(pg, c):
-    await pg.click(f'.cur button[data-c={c}]')
-    await pg.wait_for_timeout(250)
-
-
 async def open_more(pg):
     if not await pg.locator('#moreRow').count():
         await pg.click('#moreBtn')
@@ -83,23 +78,25 @@ async def open_more(pg):
 
 
 async def ground_truth(pg):
-    """All leads per currency with all statuses (from the All tab) + updated-set from Updated tab."""
-    gt = {}
+    """All leads (all statuses, all currencies) from the All tab + the updated-set from the Updated tab."""
     await all_statuses(pg)
-    for c in ['AED', 'INR', 'USD']:
-        await set_cur(pg, c)
-        await set_view(pg, 'all')
-        allr = await rows(pg)
-        await set_view(pg, 'upd')
-        upd = {r['id'] for r in await rows(pg)}
-        for r in allr:
-            r['updated'] = r['id'] in upd
-            r['cur'] = c
-        gt[c] = allr
-    await set_cur(pg, 'AED')
+    await set_view(pg, 'all')
+    allr = await rows(pg)
+    await set_view(pg, 'upd')
+    upd = {r['id'] for r in await rows(pg)}
+    for r in allr:
+        r['updated'] = r['id'] in upd
+        r['cur'] = cur_of(r['value'])
     await pg.click('#reset')
     await pg.wait_for_timeout(200)
-    return gt
+    return allr
+
+
+def due_label(d):
+    if d in ('—', 'Not set', ''):
+        return 'Not set'
+    dd = (__import__('datetime').datetime.strptime(d, '%d %b %Y').date() - TODAY).days
+    return f'Overdue {-dd}d' if dd < 0 else 'Due today' if dd == 0 else f'In {dd}d' if dd <= 7 else 'Scheduled'
 
 
 async def main():
@@ -126,87 +123,65 @@ async def main():
         tbl_top = await pg.evaluate("document.querySelector('#leadsCard').getBoundingClientRect().top")
         rec('A7', 'UX (Jay)', 'Lead list starts within first screen at 1366x768', tbl_top < 768, round(tbl_top))
 
+        default_upc = await pg.get_attribute('[data-view=upc]', 'aria-selected') == 'true'
         gt = await ground_truth(pg)
-        total = sum(len(v) for v in gt.values())
-        rec('A8', 'Data', 'Ground truth loaded (all currencies, all statuses)', total == 40, {k: len(v) for k, v in gt.items()})
+        rec('A8', 'Data', 'Ground truth loaded (all currencies, all statuses)', len(gt) == 40, len(gt))
 
-        # ---------------- B. Report types (M2) ----------------
-        await set_view(pg, 'all')
-        rec('B1', 'M2 8:01–10:22', 'Default report type is "All leads"', await pg.get_attribute('#tAll', 'aria-selected') == 'true')
-        rec('B2', 'M2 9:45', 'No due chips in All view', await pg.locator('#chips .chip').count() == 0)
-        for tab, col in (('#tFol', 'follow'), ('#tRev', 'revised')):
-            await pg.click(tab); await pg.wait_for_timeout(250)
-            chips = await pg.evaluate("[...document.querySelectorAll('#chips .chip')].map(c=>[c.dataset.k, +c.querySelector('.pill').textContent])")
-            rs = await rows(pg)
-            rec(f'B3{tab}', 'M2 7:22 / M3 25:58', f'{tab} shows 5 due chips (Overdue/Today/Next 7/Scheduled/Not set)', len(chips) == 5, chips)
-            # each row's Due badge must reflect the date column of that report type
-            bad = []
-            for r in rs:
-                d = r[col]
-                if r['status'] in ('Won', 'Lost'):
-                    continue
-                if d in ('—', 'Not set', ''):
-                    exp = 'Not set'
-                else:
-                    dd = (date.fromisoformat(__import__('datetime').datetime.strptime(d, '%d %b %Y').date().isoformat()) - TODAY).days
-                    exp = f'Overdue {-dd}d' if dd < 0 else 'Due today' if dd == 0 else f'In {dd}d' if dd <= 7 else 'Scheduled'
-                if r['due'] != exp:
-                    bad.append((r['company'], d, r['due'], exp))
-            rec(f'B4{tab}', 'M2 6:16–7:02', f'{tab}: Due badge computed from the {col} date', not bad, bad[:3])
-            total_chips = sum(n for _, n in chips)
-            rec(f'B5{tab}', 'M2', f'{tab}: chip counts add up to rows in list', total_chips == len(rs), (total_chips, len(rs)))
-            await pg.click('#chips .chip[data-k=over]'); await pg.wait_for_timeout(200)
-            ov = await rows(pg)
-            rec(f'B6{tab}', 'M1 9:14 overdue report', f'{tab}: Overdue chip shows only overdue rows', ov and all(r['due'].startswith('Overdue') for r in ov), len(ov))
-            pill = int(await pg.inner_text('#cFol' if tab == '#tFol' else '#cRev'))
-            rec(f'B7{tab}', 'M1 9:14', f'{tab}: red tab counter equals overdue count', pill == len(ov), (pill, len(ov)))
-            await pg.click('#chips .chip[data-k=over]'); await pg.wait_for_timeout(150)
-            sorted_dates = [r[col] for r in rs if r['status'] not in ('Won', 'Lost') and r[col] not in ('—', 'Not set')]
-            parsed = [__import__('datetime').datetime.strptime(d, '%d %b %Y') for d in sorted_dates]
-            rec(f'B8{tab}', 'M3 26:22', f'{tab}: list sorted by due date ascending', parsed == sorted(parsed))
-        await pg.click('#tAll'); await pg.wait_for_timeout(150)
+        # ---------------- B. Header layout (client change 29 Oct) ----------------
+        tabs = await pg.evaluate("[...document.querySelectorAll('#hero .switch button')].map(b=>b.childNodes[1]?.textContent.trim() || b.textContent.trim())")
+        rec('B1', 'Client change 29 Oct', 'Header tabs are To be Updated / Updated / All (in place of report types)', tabs == ['To be Updated', 'Updated', 'All'], tabs)
+        rec('B2', 'Client change 29 Oct', 'Old report-type tabs removed (All leads / Next Follow-up / Revised Date)', await pg.locator('#tAll, #tFol, #tRev').count() == 0)
+        rec('B3', 'Client change 29 Oct', 'Currency switch removed', await pg.locator('.cur, [data-c]').count() == 0)
+        rec('B4', 'Client change 29 Oct', 'Pipeline Review / Team Summary navigation removed', await pg.locator('.pnav, [data-page], #teamCard').count() == 0)
+        rec('B5', 'Client change 29 Oct', 'Default tab is To be Updated', default_upc)
+        geo = await pg.evaluate("(()=>{const h=document.querySelector('#hero').getBoundingClientRect(),f=document.querySelector('#filters').getBoundingClientRect(),k=document.querySelector('#kpis').getBoundingClientRect();return [h.bottom,f.top,f.bottom,k.top]})()")
+        kb = await pg.evaluate("document.querySelector('#kpis').getBoundingClientRect().bottom")
+        rec('B6', 'Client change 29 Oct (2)', 'Dark header background ends halfway down the tiles; filters sit below on the page', abs(geo[0] - (geo[3] + kb) / 2) <= 2 and geo[1] > kb, (geo, kb))
+        al = await pg.evaluate("(()=>{const box=document.querySelector('#hero .switch'),i=box.querySelector('.ind').getBoundingClientRect(),b=box.querySelector('[aria-selected=true]').getBoundingClientRect();return Math.abs(i.left-b.left)+Math.abs(i.width-b.width)})()")
+        rec('B7', 'UI', 'Tab highlight aligned with selected tab', al < 1.5, al)
+        col = await pg.evaluate("getComputedStyle(document.querySelector('#fStatus > button')).color")
+        rec('B8', 'Bug regression', 'Filter values readable on dark header (dark text on white fields)', col == 'rgb(23, 34, 51)', col)
+        for v, n in (('upd', 'nUpd'), ('all', 'nAll'), ('upc', 'nUpc')):
+            await set_view(pg, v)
+            cnt = int(await pg.inner_text('#' + n)); lr = len(await rows(pg))
+            lc = await pg.inner_text('#leadsCard .lcount')
+            rec(f'B9-{v}', 'M3 10:08–14:26', f'Tab {v}: count in header = rows in list = count in list title', cnt == lr and lc.startswith(str(lr)), (cnt, lr, lc))
 
-        # ---------------- C. Currency (M2 8:44) ----------------
-        for c in ('AED', 'INR', 'USD'):
-            await set_cur(pg, c); await set_view(pg, 'all')
-            rs = await rows(pg)
-            rec(f'C1-{c}', 'M2 8:44', f'{c}: every row in {c}', all(cur_of(r['value']) == c for r in rs), [r['value'] for r in rs][:3])
-            tot = await pg.inner_text('#ltot')
-            rec(f'C2-{c}', 'M2 8:44', f'{c}: list total uses only {c}', (not rs and tot == '') or (tot.startswith(CUR_PREFIX[c]) and '·' not in tot), tot)
-            tags = await pg.evaluate("[...document.querySelectorAll('#kpis .l em')].map(e=>e.textContent)")
-            rec(f'C3-{c}', 'M2 8:44', f'{c}: all KPI tiles tagged {c}', tags == [c] * 4, tags)
-            al = await pg.evaluate("(()=>{const box=document.querySelector('.cur'),i=box.querySelector('.ind').getBoundingClientRect(),b=box.querySelector('[aria-pressed=true]').getBoundingClientRect();return Math.abs(i.left-b.left)+Math.abs(i.width-b.width)})()")
-            rec(f'C4-{c}', 'UI bug report', f'{c}: currency highlight aligned with button', al < 1.5, al)
-        await set_cur(pg, 'INR'); await pg.reload(); await pg.wait_for_selector('#leadsCard'); await pg.wait_for_timeout(500)
-        rec('C5', 'UX', 'Currency choice remembered after reload', await pg.get_attribute('.cur [aria-pressed=true]', 'data-c') == 'INR')
-        await set_cur(pg, 'AED')
+        # ---------------- C. Currency safety without switch (M2 8:44) ----------------
+        await all_statuses(pg); await set_view(pg, 'all')
+        rs = await rows(pg)
+        curs = {cur_of(r['value']) for r in rs}
+        rec('C1', 'M2 8:44', 'Each lead shows its own currency (AED / INR / USD all present)', curs >= {'AED', 'INR', 'USD'}, curs)
+        tot = await pg.inner_text('#ltot')
+        exp = {c: sum(money_val(r['value']) for r in rs if cur_of(r['value']) == c) for c in curs}
+        rec('C2', 'M2 8:44', 'List total is split per currency (never summed across)', all(CUR_PREFIX[c] in tot for c in curs) and tot.count('·') == len(curs) - 1, tot)
+        kv = await pg.evaluate("[...document.querySelectorAll('#kpis .kpi .m')].map(e=>e.textContent)")
+        rec('C3', 'M2 8:44', 'Tiles show totals per currency; average only when one currency', all(('avg' not in m) or m.count('·') == 1 for m in kv[:2]), kv[:2])
+        await pg.click('#reset'); await pg.wait_for_timeout(150)
 
-        # ---------------- G. KPI tiles (M3 18:22) ----------------
-        for c in ('AED', 'INR'):
-            await set_cur(pg, c)
-            data = gt[c]
-            kv = await pg.evaluate("[...document.querySelectorAll('#kpis .kpi')].map(k=>({v:k.querySelector('.v').textContent,m:k.querySelector('.m').textContent,lg:k.querySelector('.legend')?.textContent||''}))")
-            for idx, stt in ((0, 'Develop'), (1, 'Propose')):
-                sub = [r for r in data if r['status'] == stt]
-                ok = int(kv[idx]['v']) == len(sub)
-                upd = [r for r in sub if r['updated']]
-                ok2 = f'Updated {len(upd)}' in kv[idx]['lg'] and f'Pending {len(sub) - len(upd)}' in kv[idx]['lg']
-                rec(f'G1-{c}-{stt}', 'M3 18:22', f'{c} {stt} tile: count matches data', ok, (kv[idx]['v'], len(sub)))
-                rec(f'G2-{c}-{stt}', 'M3 18:22', f'{c} {stt} tile: Updated/Pending split matches', ok2, kv[idx]['lg'])
-                if sub:
-                    s = sum(money_val(r['value']) for r in sub)
-                    rec(f'G3-{c}-{stt}', 'M3 18:22', f'{c} {stt} tile: total & average shown', 'avg' in kv[idx]['m'], (kv[idx]['m'], s, s / len(sub)))
-            # overdue / upcoming from status-filtered (default) set
-        await set_cur(pg, 'AED')
+        # ---------------- G. KPI tiles (M3 18:22, 26:22) ----------------
+        kv = await pg.evaluate("[...document.querySelectorAll('#kpis .kpi')].map(k=>({v:k.querySelector('.v').textContent,lg:k.querySelector('.legend')?.textContent||''}))")
+        for idx, stt in ((0, 'Develop'), (1, 'Propose')):
+            sub = [r for r in gt if r['status'] == stt]
+            upd = [r for r in sub if r['updated']]
+            rec(f'G1-{stt}', 'M3 18:22', f'{stt} tile: count matches data (all currencies)', int(kv[idx]['v']) == len(sub), (kv[idx]['v'], len(sub)))
+            rec(f'G2-{stt}', 'M3 18:22', f'{stt} tile: Updated/Pending split matches', f'Updated {len(upd)}' in kv[idx]['lg'] and f'Pending {len(sub) - len(upd)}' in kv[idx]['lg'], kv[idx]['lg'])
         await pg.click('[data-go=over]'); await pg.wait_for_timeout(500)
         rs = await rows(pg)
-        rec('G4', 'M3 26:22–26:48', 'Overdue tile → Revised Date view, All tab, Overdue chip', await pg.get_attribute('#tRev', 'aria-selected') == 'true' and await pg.get_attribute('[data-view=all]', 'aria-selected') == 'true' and await pg.get_attribute('#chips .chip[data-k=over]', 'aria-pressed') == 'true')
+        rec('G4', 'M3 26:22–26:48', 'Overdue tile → All tab + Overdue chip', await pg.get_attribute('[data-view=all]', 'aria-selected') == 'true' and await pg.get_attribute('#chips .chip[data-k=over]', 'aria-pressed') == 'true')
         kpi_over = int(await pg.evaluate("document.querySelectorAll('#kpis .v')[2].textContent"))
         rec('G5', 'M3 26:22', 'Overdue tile number = rows in overdue list', kpi_over == len(rs) and all(r['due'].startswith('Overdue') for r in rs), (kpi_over, len(rs)))
         await pg.click('[data-go=next7]'); await pg.wait_for_timeout(500)
         rs = await rows(pg)
-        rec('G6', 'M3 26:22', 'Upcoming tile → list of leads due in next 7 days', rs and all(r['due'].startswith('In ') or r['due'] == 'Due today' for r in rs), [r['due'] for r in rs])
-        await pg.click('#tAll'); await set_view(pg, 'upc')
+        rec('G6', 'M3 26:22', 'Upcoming tile → leads due today / next 7 days', rs and all(r['due'].startswith('In ') or r['due'] == 'Due today' for r in rs), [r['due'] for r in rs])
+        await pg.click('#chips .chip[aria-pressed=true]'); await pg.wait_for_timeout(150)
+        # due chips always available (Revised Date based)
+        chips = await pg.evaluate("[...document.querySelectorAll('#chips .chip')].map(c=>[c.dataset.k, +c.querySelector('.pill').textContent])")
+        rs = await rows(pg)
+        rec('G7', 'M1 9:14 overdue report', 'Revised-date chips always shown (5) and add up to the list', len(chips) == 5 and sum(n for _, n in chips) == len(rs), (chips, len(rs)))
+        bad = [(r['company'], r['due'], due_label(r['revised'])) for r in rs if r['status'] not in ('Won', 'Lost') and r['due'] != due_label(r['revised'])]
+        rec('G8', 'M3 8:38–9:10', 'Due badge computed from Revised Date (PO)', not bad, bad[:3])
+        await set_view(pg, 'upc')
 
         # ---------------- D. Filters ----------------
         await pg.click('#reset'); await pg.wait_for_timeout(200)
@@ -252,7 +227,8 @@ async def main():
         await msel(pg, 'fSite', [])
         await pg.click('#dbCre'); await pg.click('[data-p=week]'); await pg.wait_for_timeout(200)
         rs = await rows(pg)
-        rec('D12', 'M2 1:22 "this week how many opportunities added"', 'Opportunity Created + This week preset', await pg.input_value('#fFrom') != '' and len(rs) >= 1, (await pg.input_value('#fFrom'), await pg.input_value('#fTo'), len(rs)))
+        monday=(TODAY - timedelta(days=TODAY.weekday())).isoformat()
+        rec('D12', 'M2 1:22 "this week how many opportunities added"', 'Opportunity Created + This week preset (Mon–Sun calendar week)', await pg.input_value('#fFrom') == monday and len(rs) >= 1, (await pg.input_value('#fFrom'), await pg.input_value('#fTo'), len(rs)))
         await pg.click('#dbRev'); await pg.click('[data-p=next30]'); await pg.wait_for_timeout(200)
         rs = await rows(pg)
         okd = all(r['revised'] not in ('Not set',) for r in rs)
@@ -274,16 +250,18 @@ async def main():
 
         # ---------------- E. Lead list (M3) ----------------
         await all_statuses(pg)
-        for c in ('AED', 'INR'):
-            await set_cur(pg, c)
-            a = int(await pg.inner_text('#nAll')); u = int(await pg.inner_text('#nUpd')); n = int(await pg.inner_text('#nUpc'))
-            rec(f'E1-{c}', 'M3 10:08–14:26', f'{c}: To update + Updated = All', a == u + n, (n, u, a))
-        await set_cur(pg, 'AED')
+        a = int(await pg.inner_text('#nAll')); u = int(await pg.inner_text('#nUpd')); n = int(await pg.inner_text('#nUpc'))
+        rec('E1', 'M3 10:08–14:26', 'To be Updated + Updated = All', a == u + n and a == len(gt), (n, u, a))
         await set_view(pg, 'upd')
-        rs = await rows(pg)
-        cs = TODAY - timedelta(days=(TODAY.weekday() - 5) % 7)
-        okd = all(__import__('datetime').datetime.strptime(r['lu'][:11], '%d %b %Y').date() >= cs for r in rs)
-        rec('E2', 'M3 10:08 weekly Saturday cycle', 'Updated tab only has leads reviewed since Saturday', okd, [r['lu'][:11] for r in rs])
+        upd_rows = await rows(pg)
+        await set_view(pg, 'upc')
+        upc_rows = await rows(pg)
+        rec('E2', 'Client change 29 Oct — no weekly cycle', 'Updated tab = leads with a Last Updated date; To be Updated = "Not yet" (no weekly reset)',
+            upd_rows and all(r['lu'] and not r['lu'].startswith('Not yet') for r in upd_rows) and all(r['lu'].startswith('Not yet') for r in upc_rows), (len(upd_rows), len(upc_rows)))
+        tabs = await pg.evaluate("[...document.querySelectorAll('#hero .switch button')].map(b=>b.childNodes[1]?.textContent.trim() || b.textContent.trim())")
+        rec('E2b', 'Client change 29 Oct', 'Lead tabs are "To be Updated", "Updated", "All"', tabs == ['To be Updated', 'Updated', 'All'], tabs)
+        rec('E2c', 'Client change 29 Oct', 'No weekly "Update cycle" shown in the header', await pg.locator('.cycle, #cycleTxt').count() == 0 and 'cycle' not in (await pg.inner_text('body')).lower())
+        await set_view(pg, 'all')
         await set_view(pg, 'all')
         for key, col, conv in (('company', 'company', str.lower), ('value', 'value', money_val), ('owner', 'owner', str.lower)):
             for _ in range(2):
@@ -341,7 +319,7 @@ async def main():
         toast = await pg.inner_text('.toast')
         rec('F10', 'M3 6:03', 'Confirmation toast mentions write-back', 'updated' in toast.lower(), toast[:80])
         a_upc = int(await pg.inner_text('#nUpc')); a_upd = int(await pg.inner_text('#nUpd'))
-        rec('F11', 'M3 13:48–14:26', 'Saved lead moves from To update to Updated this cycle', (a_upc, a_upd) == (before_upc - 1, before_upd + 1), ((before_upc, before_upd), (a_upc, a_upd)))
+        rec('F11', 'M3 13:48–14:26', 'Saved lead moves from To be Updated to Updated', (a_upc, a_upd) == (before_upc - 1, before_upd + 1), ((before_upc, before_upd), (a_upc, a_upd)))
         await set_view(pg, 'upd')
         row = next((r for r in await rows(pg) if r['id'] == tgt['id']), None)
         rec('F12', 'M1 10:17 date of update', 'Last Updated = today by Head of Sales, revised counter +1', row and TODAY.strftime('%d %b %Y').lstrip('0') in row['lu'].lstrip('0') and 'Head of Sales' in row['lu'] and row['cnt'] == f"{int(tgt['cnt'][0]) + 1}/3", row)
@@ -393,22 +371,9 @@ async def main():
         rec('R4', 'Security', 'Switching role closes an open edit panel', await pg.locator('#drawer').count() == 0)
         await pg.click('#roleMg')
 
-        # ---------------- H. Team Summary (M1 5:16, M2 0:17, 12:16) ----------------
-        await all_statuses(pg); await set_cur(pg, 'AED')
-        await pg.click('[data-page=team]'); await pg.wait_for_timeout(500)
-        rec('H1', 'Nav', 'Team page shows owner table & hides lead list & report tabs', await pg.locator('#teamCard').count() == 1 and await pg.locator('#leadsCard').count() == 0 and await pg.evaluate("getComputedStyle(document.querySelector('.switch')).visibility") == 'hidden')
-        team = await pg.evaluate("[...document.querySelectorAll('#obody tr')].map(tr=>[...tr.querySelectorAll('td')].map((td,i)=>i===0?(td.querySelector('b')?.textContent||'').trim():td.textContent.trim()))")
-        # recompute from ground truth (AED, all statuses) — note F-tests modified one lead; compare counts only
-        data = gt['AED']
-        owners = sorted({r['owner'] for r in data})
-        ok = [t[0] for t in team] == owners and all(int(t[1]) == sum(1 for r in data if r['owner'] == t[0]) for t in team)
-        rec('H2', 'M1 5:16 pivot per person', 'Leads per owner match data', ok, team[:2])
-        okv = all(money_val(t[3]) == sum(money_val(r['value']) for r in data if r['owner'] == t[0]) for t in team)
-        rec('H3', 'M2 8:44 value per person', 'Total value per owner matches data', okv)
-        await pg.reload(); await pg.wait_for_selector('#teamCard'); await pg.wait_for_timeout(300)
-        rec('H4', 'Nav', 'Team page survives reload (#team)', await pg.locator('#teamCard').count() == 1 and (await pg.evaluate('location.hash')) == '#team')
-        await pg.click('[data-go=over]'); await pg.wait_for_timeout(500)
-        rec('H5', 'Nav', 'Overdue tile from Team page goes back to the lead list', await pg.locator('#leadsCard').count() == 1)
+        # ---------------- H. Navigation removed (client change 29 Oct) ----------------
+        await pg.goto(BASE + '#team'); await pg.wait_for_selector('#leadsCard'); await pg.wait_for_timeout(300)
+        rec('H1', 'Client change 29 Oct', 'Single page: #team hash still shows the lead list, no Team page', await pg.locator('#leadsCard').count() == 1 and await pg.locator('#teamCard').count() == 0)
         rec('A9', 'Quality', 'No console errors/warnings during session', not errs, errs[:3])
         await ctx.close()
 
@@ -437,7 +402,7 @@ async def main():
         # ---------------- S. Classic (Windows-style) scrollbars ----------------
         b2 = await p.chromium.launch(ignore_default_args=['--hide-scrollbars'])
         ctx = await b2.new_context(viewport={'width': 1366, 'height': 768}); pg = await ctx.new_page(); await pg.goto(BASE); await pg.wait_for_selector('#leadsCard'); await pg.wait_for_timeout(1300)
-        js = "[document.querySelector('#leadsCard').getBoundingClientRect().left, document.querySelector('.cur').getBoundingClientRect().left]"
+        js = "[document.querySelector('#leadsCard').getBoundingClientRect().left, document.querySelector('.hero .switch').getBoundingClientRect().left]"
         a = await pg.evaluate(js); await pg.click('#mainSecs tbody tr >> nth=0'); await pg.wait_for_timeout(700)
         o = await pg.evaluate(js); cover = await pg.evaluate("document.querySelector('.drawerbg').getBoundingClientRect().right >= innerWidth - 0.5")
         await pg.keyboard.press('Escape'); await pg.wait_for_timeout(500); c = await pg.evaluate(js)

@@ -1,7 +1,5 @@
-import { useRef } from 'react';
-import type { Currency, Mode, Page, Role } from '../../types';
-import { CURRENCIES } from '../../data/constants';
-import { CYCLE_LABEL } from '../../lib/dates';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import type { Role, View } from '../../types';
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator';
 import { Icon, type IconName } from '../ui/Icon';
 import { CountPill } from '../ui/Badges';
@@ -9,70 +7,81 @@ import { Reveal } from '../ui/Reveal';
 import { WaterRipple } from './WaterRipple';
 import logo from '../../assets/manav-crm-logo.png';
 
-const PAGE_COPY: Record<Page, { title: string; sub: string }> = {
-  review: { title: 'Pipeline Review', sub: 'Weekly lead review — click a lead to update it.' },
-  team: { title: 'Team Summary', sub: 'Per-salesperson totals, follow-ups and update discipline.' },
-};
-
 interface HeroProps {
-  page: Page;
-  onPage: (p: Page) => void;
   role: Role;
   onRole: (r: Role) => void;
-  mode: Mode;
-  onMode: (m: Mode) => void;
-  counts: { all: number; fol: number; rev: number };
-  cur: Currency;
-  onCur: (c: Currency) => void;
+  view: View;
+  onView: (v: View) => void;
+  counts: Record<View, number>;
+  /** Summary tiles, banner and filters — rendered on the dark background. */
+  children?: ReactNode;
 }
 
-export function Hero({ page, onPage, role, onRole, mode, onMode, counts, cur, onCur }: HeroProps) {
+export function Hero({ role, onRole, view, onView, counts, children }: HeroProps) {
   const heroRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // The dark background ends halfway down the (first row of) tiles: publish the overlap as --kcut
+  // (used by .herocontent / .wrap) and keep it in sync as the tiles resize or wrap.
+  useLayoutEffect(() => {
+    const host = contentRef.current;
+    if (!host) return;
+    const root = document.documentElement;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const row = host.firstElementChild;
+      const total = row?.getBoundingClientRect().height ?? 0;
+      const first = row?.firstElementChild?.getBoundingClientRect().height ?? total;
+      root.style.setProperty('--kcut', `${Math.round(total - first / 2)}px`);
+    };
+    const sync = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    // watch the tile row (not the wrapper, whose height depends on --kcut)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(sync) : null;
+    const watch = () => {
+      ro?.disconnect();
+      const row = host.firstElementChild;
+      if (row) ro?.observe(row);
+      if (row?.firstElementChild) ro?.observe(row.firstElementChild);
+      sync();
+    };
+    measure();
+    watch();
+    const mo = new MutationObserver(watch);
+    mo.observe(host, { childList: true });
+    return () => {
+      ro?.disconnect();
+      mo.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <div className="hero" id="hero" ref={heroRef}>
       <WaterRipple hostRef={heroRef} />
-      <TopBar page={page} onPage={onPage} role={role} onRole={onRole} />
+      <TopBar role={role} onRole={onRole} />
 
       <Reveal className="herobody" delay={60}>
         <div>
-          <h1 id="pageTitle">{PAGE_COPY[page].title}</h1>
-          <p className="sub" id="pageSub">{PAGE_COPY[page].sub}</p>
+          <h1 id="pageTitle">Pipeline Review</h1>
+          <p className="sub" id="pageSub">Lead review — click a lead to update it.</p>
         </div>
-        <div className="cycle">
-          <div className="cyi"><Icon name="cal" /></div>
-          <div>
-            <small>Update cycle</small>
-            <b id="cycleTxt">{CYCLE_LABEL}</b>
-          </div>
-        </div>
+        <ViewTabs view={view} onView={onView} counts={counts} />
       </Reveal>
 
-      <Reveal className={`herofoot${page !== 'review' ? ' hide-tabs' : ''}`} delay={140}>
-        <ReportTabs mode={mode} onMode={onMode} counts={counts} />
-        <CurrencySwitch cur={cur} onCur={onCur} />
-      </Reveal>
+      <div className="herocontent" ref={contentRef}>{children}</div>
     </div>
   );
 }
 
-function TopBar({ page, onPage, role, onRole }: Pick<HeroProps, 'page' | 'onPage' | 'role' | 'onRole'>) {
+function TopBar({ role, onRole }: Pick<HeroProps, 'role' | 'onRole'>) {
   const mg = role === 'mg';
-  const pages: { id: Page; label: string; icon: IconName }[] = [
-    { id: 'review', label: 'Pipeline Review', icon: 'layers' },
-    { id: 'team', label: 'Team Summary', icon: 'users' },
-  ];
   return (
     <header className="top">
       <div className="top-in">
         <img className="logo" alt="Manav CRM" src={logo} />
-        <nav className="pnav" aria-label="Pages">
-          {pages.map((p) => (
-            <button key={p.id} data-page={p.id} aria-current={page === p.id ? 'page' : undefined} onClick={() => onPage(p.id)}>
-              <Icon name={p.icon} />
-              {p.label}
-            </button>
-          ))}
-        </nav>
         <div className="spacer" />
         <span className="demo-tag">DEMO DATA</span>
         <div className="role" role="group" aria-label="Demo role">
@@ -94,35 +103,22 @@ function TopBar({ page, onPage, role, onRole }: Pick<HeroProps, 'page' | 'onPage
   );
 }
 
-function ReportTabs({ mode, onMode, counts }: Pick<HeroProps, 'mode' | 'onMode' | 'counts'>) {
-  const { ref, style, ready } = useSlidingIndicator<HTMLDivElement>('[aria-selected=true]', mode);
-  const tabs: { id: Mode; el: string; label: string; icon: IconName; count: number; red?: boolean; title?: string }[] = [
-    { id: 'all', el: 'tAll', label: 'All leads', icon: 'layers', count: counts.all },
-    { id: 'fol', el: 'tFol', label: 'Next Follow-up', icon: 'clock', count: counts.fol, red: true, title: 'Overdue follow-ups' },
-    { id: 'rev', el: 'tRev', label: 'Revised Date', icon: 'cal', count: counts.rev, red: true, title: 'Overdue revised dates' },
-  ];
-  return (
-    <div className={`switch${ready ? ' ready' : ''}`} role="tablist" aria-label="Report type" ref={ref}>
-      <span className="ind" aria-hidden="true" style={style} />
-      {tabs.map((t) => (
-        <button key={t.id} role="tab" id={t.el} aria-selected={mode === t.id} onClick={() => onMode(t.id)}>
-          <Icon name={t.icon} />
-          {t.label} <CountPill id={`c${t.el.slice(1)}`} value={t.count} tone={t.red ? 'red' : ''} title={t.title} />
-        </button>
-      ))}
-    </div>
-  );
-}
+const TABS: { id: View; el: string; pill: string; label: string; icon: IconName; tone: '' | 'amber' | 'grey' }[] = [
+  { id: 'upc', el: 'vUpc', pill: 'nUpc', label: 'To be Updated', icon: 'inbox', tone: 'amber' },
+  { id: 'upd', el: 'vUpd', pill: 'nUpd', label: 'Updated', icon: 'check', tone: '' },
+  { id: 'all', el: 'vAll', pill: 'nAll', label: 'All', icon: 'layers', tone: 'grey' },
+];
 
-function CurrencySwitch({ cur, onCur }: Pick<HeroProps, 'cur' | 'onCur'>) {
-  const { ref, style, ready } = useSlidingIndicator<HTMLDivElement>('[aria-pressed=true]', cur);
+/** Lead list tabs: To be Updated · Updated · All. */
+function ViewTabs({ view, onView, counts }: Pick<HeroProps, 'view' | 'onView' | 'counts'>) {
+  const { ref, style, ready } = useSlidingIndicator<HTMLDivElement>('[aria-selected=true]', view);
   return (
-    <div className={`cur${ready ? ' ready' : ''}`} role="group" aria-label="Currency" ref={ref}>
+    <div className={`switch${ready ? ' ready' : ''}`} role="tablist" aria-label="Lead list" ref={ref}>
       <span className="ind" aria-hidden="true" style={style} />
-      <span className="clabel">Currency</span>
-      {CURRENCIES.map((c) => (
-        <button key={c} data-c={c} aria-pressed={cur === c} onClick={() => onCur(c)}>
-          {c}
+      {TABS.map((t) => (
+        <button key={t.id} role="tab" id={t.el} data-view={t.id} aria-selected={view === t.id} aria-controls="leadsCard" onClick={() => onView(t.id)}>
+          <Icon name={t.icon} />
+          {t.label} <CountPill id={t.pill} value={counts[t.id]} tone={t.tone} />
         </button>
       ))}
     </div>

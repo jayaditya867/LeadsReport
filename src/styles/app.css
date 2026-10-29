@@ -41,10 +41,6 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 h1{font-family:var(--display);font-size:2.1rem;line-height:1.15;margin:0;font-weight:800;letter-spacing:-.4px}
 .sub{color:#b3c3d6;font-size:.95rem;margin:8px 0 0;max-width:640px}
-.cycle{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);border-radius:14px;padding:12px 16px;backdrop-filter:blur(8px)}
-.cycle .cyi{width:38px;height:38px;border-radius:10px;background:rgba(10,154,82,.22);color:#7fe0a8;display:grid;place-items:center}
-.cycle small{display:block;color:#9fb2c9;font-size:.72rem;text-transform:uppercase;letter-spacing:.8px;font-weight:600}
-.cycle b{font-size:.95rem;color:#fff}
 
 .herofoot{position:relative;z-index:2;max-width:1640px;margin:0 auto;padding:26px 28px 0;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
 .switch{display:flex;gap:4px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:4px;flex-wrap:wrap}
@@ -55,10 +51,6 @@ h1{font-family:var(--display);font-size:2.1rem;line-height:1.15;margin:0;font-we
 .pill.red{background:var(--r-l);color:var(--r)}
 .switch button:not([aria-selected=true]) .pill{background:rgba(255,255,255,.12);color:#fff}
 .switch button:not([aria-selected=true]) .pill.red{background:rgba(224,62,47,.85);color:#fff}
-.cur{display:flex;gap:2px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:4px}
-.cur .clabel{color:#8fa4bd;font-size:.72rem;font-weight:600;letter-spacing:.6px;align-self:center;padding:0 8px 0 6px;text-transform:uppercase}
-.cur button{border:0;background:transparent;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.8rem;color:#c6d4e5;letter-spacing:.3px}
-.cur button[aria-pressed=true]{background:var(--g);color:#fff;box-shadow:0 4px 12px rgba(10,154,82,.4)}
 
 /* ---------- layout ---------- */
 .wrap{max-width:1640px;margin:-72px auto 0;padding:0 28px 60px;position:relative;z-index:3}
@@ -243,14 +235,12 @@ html{font-size:14px}
 .herobody{padding:14px 24px 0;align-items:center}
 h1{font-size:1.45rem;letter-spacing:-.2px}
 .sub{font-size:.84rem;margin-top:3px}
-.cycle{padding:7px 12px;border-radius:11px;gap:10px}
-.cycle .cyi{width:30px;height:30px;border-radius:8px}.cycle .cyi .ic{width:16px;height:16px}
-.cycle small{font-size:.62rem}.cycle b{font-size:.84rem}
+
 .herofoot{padding:12px 24px 0}
 .switch{border-radius:11px;padding:3px}
 .switch button{padding:6px 13px;font-size:.82rem;border-radius:8px;gap:7px}
 .switch .ic{width:15px;height:15px}
-.cur{border-radius:10px;padding:3px}.cur button{padding:5px 11px;font-size:.74rem}.cur .clabel{font-size:.64rem}
+
 .wrap{margin-top:-38px;padding:0 24px 40px}
 
 .kpis{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
@@ -311,16 +301,16 @@ td .ed{padding:5px 8px;border-radius:7px;font-size:.8rem;min-width:165px}
 .reveal{animation:fadeUp .7s var(--ease) both;animation-delay:var(--d,0ms)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 /* sliding indicators */
-.switch,.cur{position:relative}
-.switch .ind,.cur .ind{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:8px;transition:transform .45s var(--ease),width .45s var(--ease);z-index:0;pointer-events:none}
+.switch{position:relative}
+.switch .ind{position:absolute;top:3px;bottom:3px;left:0;width:0;border-radius:8px;transition:transform .45s var(--ease),width .45s var(--ease);z-index:0;pointer-events:none}
 .switch .ind{background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25)}
-.cur .ind{background:var(--g);box-shadow:0 4px 12px rgba(10,154,82,.4)}
-.switch button,.cur button,.cur .clabel{position:relative;z-index:1}
+
+.switch button{position:relative;z-index:1}
 .rp>.rip{position:absolute;padding:0}
-.switch.ready button[aria-selected=true],.cur.ready button[aria-pressed=true]{background:transparent;box-shadow:none}
+.switch.ready button[aria-selected=true]{background:transparent;box-shadow:none}
 .switch button{transition:color .3s var(--ease)}
 .switch.ready button[aria-selected=true]{color:var(--ink)}
-.cur.ready button[aria-pressed=true]{color:#fff}
+
 /* press ripple */
 .rp{position:relative;overflow:hidden}
 .rip{position:absolute;border-radius:50%;pointer-events:none;transform:scale(0);opacity:.35;background:currentColor;animation:rip .6s var(--ease) forwards}
@@ -338,7 +328,7 @@ tbody tr:hover td.lead{box-shadow:inset 3px 0 0 var(--g),1px 0 0 var(--line)}
 @keyframes rowIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 .msel .menu{animation:pop .18s var(--ease)}
-.chip,.link,.morebtn,.btn,.seg button,.cur button{transition:all .22s var(--ease)}
+.chip,.link,.morebtn,.btn,.seg button{transition:all .22s var(--ease)}
 .pill{transition:transform .3s var(--ease)}
 .bump{animation:bump .5s var(--ease)}
 @keyframes bump{40%{transform:scale(1.25)}}
@@ -348,30 +338,17 @@ tbody tr:hover td.lead{box-shadow:inset 3px 0 0 var(--g),1px 0 0 var(--line)}
 html.lock{overflow:hidden}
 .toast{left:50%;right:auto;transform:translate(-50%,16px);pointer-events:none}.toast.show{transform:translate(-50%,0);pointer-events:auto}
 @media (max-width:760px){.toast{left:12px;right:12px;transform:translateY(16px)}.toast.show{transform:none}}
-.pnav{display:flex;gap:2px;margin-left:8px;padding-left:16px;border-left:1px solid rgba(255,255,255,.14)}
-.pnav button{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:#a9bbd0;font-size:.82rem;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;transition:all .25s var(--ease)}
-.pnav button .ic{width:15px;height:15px}
-.pnav button:hover{color:#fff;background:rgba(255,255,255,.07)}
-.pnav button[aria-current=page]{color:#fff;background:rgba(255,255,255,.12)}
-.herofoot.hide-tabs .switch{visibility:hidden}
-.leads,.team{margin-bottom:14px;border-radius:13px;overflow:hidden}
+
+.leads{margin-bottom:14px;border-radius:13px;overflow:hidden}
 .lhead{display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);min-height:50px}
-.team .lhead{padding:12px 16px}
-.team h2{font-family:var(--display);font-size:1rem;margin:0;color:var(--ink)}
-.tdot{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--violet),#8f82ea)}
-.ltabs{display:flex;gap:4px;align-self:stretch}
-.ltabs button{position:relative;border:0;background:transparent;padding:0 12px;font-weight:600;font-size:.88rem;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:8px;transition:color .25s var(--ease)}
-.ltabs button::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2.5px;border-radius:3px 3px 0 0;background:var(--g);transform:scaleX(0);transition:transform .35s var(--ease)}
-.ltabs button:hover{color:var(--ink)}
-.ltabs button[aria-selected=true]{color:var(--ink)}
-.ltabs button[aria-selected=true]::after{transform:scaleX(1)}
+
 .pill.amber{background:var(--amber-l);color:var(--amber)}.pill.grey{background:#eef1f5;color:var(--muted)}
 .ltot{font-size:.8rem;font-weight:700;color:var(--text);background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:3px 10px}
 .ltot:empty{display:none}
 .lnote{padding:8px 16px;font-size:.78rem;color:var(--muted);background:#fbfcfe;border-bottom:1px solid var(--line)}
-.leads .tw,.team .tw{border-top:0;max-height:none}
+.leads .tw{border-top:0;max-height:none}
 .leads table{min-width:960px}.leads td.lead,.leads th.lead{min-width:210px}.leads .lu small{white-space:nowrap}.leads th{white-space:nowrap}.leads td{white-space:normal}.leads td.val,.leads td.num{white-space:nowrap}.leads td .badge{white-space:nowrap}
-.team table{min-width:880px}
+
 .leads tbody tr{cursor:pointer}
 .leads td{vertical-align:middle;padding:10px 9px}.leads th{padding-left:9px;padding-right:9px}.leads td.go .openbtn{padding:5px 8px}
 .leads tbody tr:hover td{background:#f6fbf8}
@@ -422,8 +399,8 @@ td.go{text-align:right;width:1%}
 .dbody .errmsg{margin-top:8px}
 .dfoot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line);background:#fbfcfe}
 .dfoot .btn{padding:8px 16px;font-size:.84rem}
-@media (max-width:760px){.pnav{margin-left:0;padding-left:0;border:0}.pnav button{padding:6px 8px;font-size:.74rem}.pnav button .ic{display:none}
-  .ltabs button{padding:0 8px;font-size:.8rem}.ltot{display:none}.leads table{min-width:0}.dgrid{grid-template-columns:1fr}.dstats{grid-template-columns:1fr 1fr}
+@media (max-width:760px){
+  .ltot{display:none}.leads table{min-width:0}.dgrid{grid-template-columns:1fr}.dstats{grid-template-columns:1fr 1fr}
   td.go{display:none}}
 
 /* layering: filter dropdowns always above the tables */
@@ -441,3 +418,35 @@ html{scrollbar-color:#9fb0c4 #eef1f6}
 .msel .menu::-webkit-scrollbar{width:6px}
 
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== v5 — header holds view tabs, tiles and filters (client change 29 Oct) ===== */
+.hero{overflow:visible;padding-bottom:40px}
+.herocontent{position:relative;z-index:10;max-width:1640px;margin:0 auto;padding:16px 24px 0;color:var(--text)}
+.herocontent .kpis{margin-bottom:12px}
+.herocontent .filters{margin-bottom:0;box-shadow:0 2px 4px rgba(10,22,38,.06),0 14px 34px rgba(0,0,0,.22)}
+.herocontent .banner{margin-bottom:12px}
+.wrap{margin-top:-20px}
+.ltitle{font-family:var(--display);font-size:1rem;margin:0;color:var(--ink);display:flex;align-items:center;gap:10px}
+.lcount{font-family:var(--font);font-size:.74rem;font-weight:600;color:var(--muted);background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.leads .lhead{padding:10px 16px;min-height:48px}
+.switch .pill.amber{background:var(--amber-l);color:var(--amber)}
+.switch .pill.grey{background:#eef1f5;color:var(--muted)}
+.switch button:not([aria-selected=true]) .pill.amber,.switch button:not([aria-selected=true]) .pill.grey{background:rgba(255,255,255,.12);color:#fff}
+.kpi .m{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media (max-width:1100px){.herocontent{padding:14px 18px 0}}
+@media (max-width:760px){.herocontent{padding:12px 16px 0}.hero{padding-bottom:30px}}
+
+/* ===== v6 — dark header ends halfway down the tile row (Jay, 29 Oct); filters sit on the page ===== */
+:root{--kcut:48px}
+.hero{padding-bottom:0}
+.herocontent{display:flow-root}
+.herocontent .kpis{margin-bottom:calc(var(--kcut) * -1)}
+.wrap{margin-top:0;padding-top:calc(var(--kcut) + 14px)}
+.wrap > .filters{margin-bottom:14px}
+.wrap > .banner{margin-bottom:12px}
+@media (max-width:1100px){.wrap{padding-left:18px;padding-right:18px}}
+@media (max-width:760px){.hero{padding-bottom:0}.wrap{padding-left:16px;padding-right:16px}}
+
+/* ===== v7 — lead tabs on the right, opposite the title (Jay, 29 Oct) ===== */
+.herobody .switch{flex-shrink:0}
+@media (max-width:760px){.herobody .switch{align-self:stretch}}
