@@ -450,3 +450,33 @@ html{scrollbar-color:#9fb0c4 #eef1f6}
 /* ===== v7 — lead tabs on the right, opposite the title (Jay, 29 Oct) ===== */
 .herobody .switch{flex-shrink:0}
 @media (max-width:760px){.herobody .switch{align-self:stretch}}
+
+/* ===== v8 — table total row; unlimited revised-date changes (Jay, 29 Oct) ===== */
+.leads tfoot td{background:var(--soft);border-top:2px solid var(--line);padding:12px 14px;vertical-align:middle;font-weight:700;color:var(--ink)}
+.leads tfoot tr:hover td{background:var(--soft)}
+.leads tfoot td.lead b{font-family:var(--display);font-size:.9rem}
+.leads tfoot td.lead small{display:block;font-weight:600;color:var(--muted);margin-top:2px}
+.leads tfoot .tline{display:block;white-space:nowrap;line-height:1.5}
+.leads tfoot .tnote{font-size:.74rem;font-weight:500;color:var(--muted)}
+.leads tfoot tr{cursor:default}
+.revcount{padding:6px 0;line-height:1.35}.revcount b{display:block;font-size:.88rem;color:var(--ink)}.revcount small{display:block;font-size:.72rem;color:var(--muted);margin-top:2px}
+.leads tfoot td.lead small{border:0;background:none;padding:0;border-radius:0;font-size:.74rem}
+@media (max-width:760px){
+  .leads tfoot tr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--soft);border-top:2px solid var(--line)}
+  .leads tfoot td{display:block;border:0;padding:0;background:none}
+  .leads tfoot td::before{display:none}
+  .leads tfoot td[aria-hidden]{display:none}
+  .leads tfoot td.val{text-align:right}
+  .leads tfoot .tnote{flex:1 0 100%;margin-top:6px}
+  .leads tfoot .tnote:empty{display:none}
+}
+
+/* ===== v9 — tighter action / Last Updated columns (Jay, 29 Oct) ===== */
+.leads th.ns,.leads td.go{width:1%;padding-left:4px;padding-right:12px}
+.leads .lu{min-width:0;max-width:140px;width:1%}
+.leads .lu small{display:block;white-space:normal;line-height:1.3}
+.leads td.go .openbtn{padding:4px 8px;gap:4px}
+
+/* ===== v10 — total back in the list header (Jay, 29 Oct) ===== */
+.ltot .ltl{font-weight:600;color:var(--muted);margin-right:2px}
+@media (max-width:760px){.leads .lhead{flex-wrap:wrap;gap:6px}.leads .ltot{display:inline-block}}

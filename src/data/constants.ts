@@ -39,8 +39,8 @@ export const REGIONS: Record<string, string[]> = {
 };
 export const OWNERS = ['Aisha Rahman', 'Karan Mehta', 'Omar Farouk', 'Priya Nair', 'Rohit Sharma', 'Layla Hassan'];
 export const MGMT = ['Head of Sales', 'Director'];
-export const CURRENCIES: Currency[] = ['AED', 'INR', 'USD'];
-export const MAX_REVISIONS = 3;
+/** The report covers INR (Rupee) leads only — leads in other currencies are left out, never converted (Jay, 29 Oct). */
+export const REPORT_CURRENCY: Currency = 'INR';
 
 export const FIELD_LABEL: Record<EditableField, string> = {
   stage: 'Proposal Status', revised: 'Revised Date', follow: 'Next Follow-up', project: 'Project Status',

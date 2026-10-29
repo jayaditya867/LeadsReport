@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BucketKey, Draft, EditableField, Filters, Lead, Mode, Role, SortState, View } from './types';
-import { DEFAULT_STATUS, FIELD_LABEL, MAX_REVISIONS, MGMT } from './data/constants';
+import { DEFAULT_STATUS, FIELD_LABEL, MGMT, REPORT_CURRENCY } from './data/constants';
 import { buildDemoLeads } from './data/demoLeads';
 import { TODAY, iso } from './lib/dates';
 import { bucket, dueDate, filterLeads, isUpdated, moreFilterCount } from './lib/leads';
@@ -33,7 +33,8 @@ function PipelineReview() {
   usePressRipple();
   const toast = useToast();
 
-  const [leads, setLeads] = useState<Lead[]>(buildDemoLeads);
+  // INR-only report: leads in any other currency are excluded (live build: Currency = Rupees / INR)
+  const [leads, setLeads] = useState<Lead[]>(() => buildDemoLeads().filter((l) => l.cur === REPORT_CURRENCY));
   const [role, setRole] = useState<Role>('mg');
   const [chip, setChip] = useState<BucketKey | ''>('');
   const [view, setView] = useState<View>('upc');
@@ -138,8 +139,7 @@ function PipelineReview() {
     let errField: EditableField | undefined;
     if (revChanged) {
       errField = 'revised';
-      if (l.counter >= MAX_REVISIONS) err = `Revised date can be changed at most ${MAX_REVISIONS} times.`;
-      else if (!d.revised) err = 'Revised date cannot be cleared.';
+      if (!d.revised) err = 'Revised date cannot be cleared.';
       else if (d.revised < today) err = 'Revised date cannot be in the past.';
       else if (!newRemark) [err, errField] = ['Enter a remark explaining the new revised date.', 'remark'];
     }

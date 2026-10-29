@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Draft, EditableField, Lead, Role } from '../../types';
-import { MAX_REVISIONS, NEW_STAGES, PROPOSAL, SITE } from '../../data/constants';
+import { NEW_STAGES, PROPOSAL, SITE } from '../../data/constants';
 import { TODAY, fmtD, iso } from '../../lib/dates';
 import { bucket, commentCount, isClosed } from '../../lib/leads';
 import { money, plural } from '../../lib/format';
@@ -68,7 +68,6 @@ export function LeadDrawer({ lead, role, draft, onField, onSave, onCancel, onClo
   if (!shown) return null;
   const l = lead ?? shown;
   const edit = role === 'mg' && !isClosed(l);
-  const maxed = l.counter >= MAX_REVISIONS;
   const val = (f: EditableField): string => (draft && f in draft ? (draft[f] as string) : l[f]);
   const dirty = (f: EditableField) => !!draft && f in draft;
   const hasChanges = !!draft && Object.keys(draft).some((k) => !k.startsWith('__'));
@@ -128,12 +127,12 @@ export function LeadDrawer({ lead, role, draft, onField, onSave, onCancel, onClo
           <h4>Expected PO</h4>
           <div className="dgrid">
             <Field label="Revised Date (PO)">
-              {edit ? input('revised', 'date', { min: iso(TODAY), disabled: maxed, title: maxed ? `Already changed ${MAX_REVISIONS} times` : undefined }) : ro(l.revised, fmtD)}
+              {edit ? input('revised', 'date', { min: iso(TODAY) }) : ro(l.revised, fmtD)}
             </Field>
-            <Field label="Changes used">
-              <div className="meter">
-                <span>{Array.from({ length: MAX_REVISIONS }, (_, i) => <i key={i} className={i < l.counter ? 'on' : undefined} />)}</span>
-                {l.counter} of {MAX_REVISIONS}{maxed ? ' · limit reached' : ''}
+            <Field label="Times changed">
+              <div className="revcount" id="revCount">
+                <b>{l.counter ? (l.counter === 1 ? 'Once' : `${l.counter} times`) : 'Not changed yet'}</b>
+                {l.counter > 0 && <small>No limit — every change is logged in the history below</small>}
               </div>
             </Field>
             <Field label={<>Remarks{edit && <em>required when the date changes</em>}</>} full>

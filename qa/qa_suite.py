@@ -46,7 +46,7 @@ async def rows(pg):
       const tds = tr.querySelectorAll('td');
       return { id: tr.dataset.open, company: t('td.lead b'), eidState: t('td.lead small'), owner: (tds[1].querySelector('.own')?.lastChild?.textContent || tds[1].textContent).trim(),
         value: tds[2].textContent.trim(), status: tds[3].textContent.trim(), due: tds[4].textContent.trim(), stage: tds[5].textContent.trim(),
-        revised: tds[6].childNodes[0]?.textContent.trim(), cnt: t('.cnt'), follow: tds[7].textContent.trim(), lu: tds[8].textContent.trim(), act: tds[9].textContent.trim() };
+        revised: tds[6].childNodes[0]?.textContent.trim(), cnt: t('.cnt'), follow: tds[7].textContent.trim(), visit: t('td.visit'), lu: t('td.lu'), act: t('td.go') };
     })""")
 
 
@@ -125,7 +125,7 @@ async def main():
 
         default_upc = await pg.get_attribute('[data-view=upc]', 'aria-selected') == 'true'
         gt = await ground_truth(pg)
-        rec('A8', 'Data', 'Ground truth loaded (all currencies, all statuses)', len(gt) == 40, len(gt))
+        rec('A8', 'Data', 'Ground truth loaded (all statuses, INR leads)', len(gt) == 40, len(gt))
 
         # ---------------- B. Header layout (client change 29 Oct) ----------------
         tabs = await pg.evaluate("[...document.querySelectorAll('#hero .switch button')].map(b=>b.childNodes[1]?.textContent.trim() || b.textContent.trim())")
@@ -147,16 +147,21 @@ async def main():
             lc = await pg.inner_text('#leadsCard .lcount')
             rec(f'B9-{v}', 'M3 10:08–14:26', f'Tab {v}: count in header = rows in list = count in list title', cnt == lr and lc.startswith(str(lr)), (cnt, lr, lc))
 
-        # ---------------- C. Currency safety without switch (M2 8:44) ----------------
+        # ---------------- C. INR only (Jay, 29 Oct) ----------------
         await all_statuses(pg); await set_view(pg, 'all')
         rs = await rows(pg)
         curs = {cur_of(r['value']) for r in rs}
-        rec('C1', 'M2 8:44', 'Each lead shows its own currency (AED / INR / USD all present)', curs >= {'AED', 'INR', 'USD'}, curs)
-        tot = await pg.inner_text('#ltot')
-        exp = {c: sum(money_val(r['value']) for r in rs if cur_of(r['value']) == c) for c in curs}
-        rec('C2', 'M2 8:44', 'List total is split per currency (never summed across)', all(CUR_PREFIX[c] in tot for c in curs) and tot.count('·') == len(curs) - 1, tot)
+        rec('C1', 'Jay 29 Oct', 'Every lead amount is in INR (₹); no AED / USD anywhere on the page', curs == {'INR'} and not re.search(r'\b(AED|USD)\b', await pg.inner_text('body')), curs)
+        exp = sum(money_val(r['value']) for r in rs)
+        ttl = await pg.get_attribute('#ltot', 'title')
+        got = money_val(ttl.split(':')[-1])
+        rec('C2', 'Jay 29 Oct', 'List header Total (₹) = sum of Est. Revenue of the tab', got == exp and (await pg.inner_text('#ltotVal')).startswith('₹'), (got, exp, await pg.inner_text('#ltot')))
+        rec('C2b', 'Jay 29 Oct', 'Total shown in the list header only — no total row in the table footer', await pg.locator('#mainSecs tfoot').count() == 0 and await pg.locator('.lhead #ltot').count() == 1 and str(len(rs)) in ttl, ttl)
+        await set_view(pg, 'upc'); urs = await rows(pg)
+        rec('C2c', 'Jay 29 Oct', 'Header total follows the selected tab (To be Updated)', money_val((await pg.get_attribute('#ltot', 'title')).split(':')[-1]) == sum(money_val(x['value']) for x in urs))
+        await set_view(pg, 'all')
         kv = await pg.evaluate("[...document.querySelectorAll('#kpis .kpi .m')].map(e=>e.textContent)")
-        rec('C3', 'M2 8:44', 'Tiles show totals per currency; average only when one currency', all(('avg' not in m) or m.count('·') == 1 for m in kv[:2]), kv[:2])
+        rec('C3', 'M3 + Jay 29 Oct', 'Developed / Proposed tiles show a single ₹ total with average', all(m.startswith('₹') and 'avg ₹' in m for m in kv[:2] if m != 'No leads'), kv[:2])
         await pg.click('#reset'); await pg.wait_for_timeout(150)
 
         # ---------------- G. KPI tiles (M3 18:22, 26:22) ----------------
@@ -256,8 +261,8 @@ async def main():
         upd_rows = await rows(pg)
         await set_view(pg, 'upc')
         upc_rows = await rows(pg)
-        rec('E2', 'Client change 29 Oct — no weekly cycle', 'Updated tab = leads with a Last Updated date; To be Updated = "Not yet" (no weekly reset)',
-            upd_rows and all(r['lu'] and not r['lu'].startswith('Not yet') for r in upd_rows) and all(r['lu'].startswith('Not yet') for r in upc_rows), (len(upd_rows), len(upc_rows)))
+        rec('E2', 'Client change 29 Oct — no weekly cycle', 'Updated tab = leads with a Last Updated date; To be Updated hides the (always empty) Last Updated column',
+            upd_rows and all(r['lu'] and not r['lu'].startswith('Not yet') for r in upd_rows) and all(r['lu'] == '' for r in upc_rows) and await pg.locator('#mainSecs th:has-text("Last Updated")').count() == 0, (len(upd_rows), len(upc_rows)))
         tabs = await pg.evaluate("[...document.querySelectorAll('#hero .switch button')].map(b=>b.childNodes[1]?.textContent.trim() || b.textContent.trim())")
         rec('E2b', 'Client change 29 Oct', 'Lead tabs are "To be Updated", "Updated", "All"', tabs == ['To be Updated', 'Updated', 'All'], tabs)
         rec('E2c', 'Client change 29 Oct', 'No weekly "Update cycle" shown in the header', await pg.locator('.cycle, #cycleTxt').count() == 0 and 'cycle' not in (await pg.inner_text('body')).lower())
@@ -274,12 +279,12 @@ async def main():
         await pg.click('th[data-sort=due]'); await pg.wait_for_timeout(100)
         closed = [r for r in await rows(pg) if r['status'] in ('Won', 'Lost')]
         rec('E4', 'M3 17:43 all statuses', 'Closed leads appear with "View" (not Update)', closed and all(r['act'].startswith('View') for r in closed), len(closed))
-        rec('E5', 'M2 12:16', 'Revised-date change counter shown n/3', all(re.match(r'^[0-3]/3$', r['cnt']) for r in await rows(pg)))
+        rec('E5', 'Jay 29 Oct (no limit)', 'Revised-date change count shown as ×n (no "of 3" limit)', all(r['cnt'] == '' or re.match(r'^×[1-9]\d*$', r['cnt']) for r in await rows(pg)) and any(r['cnt'] for r in await rows(pg)))
 
         # ---------------- F. Update panel rules (M3) ----------------
         await pg.click('#reset'); await set_view(pg, 'upc')
         rs = await rows(pg)
-        tgt = next(r for r in rs if r['cnt'] != '3/3')
+        tgt = next(r for r in rs if r['cnt'] == '×3') if any(r['cnt'] == '×3' for r in rs) else rs[0]
         before_upc = int(await pg.inner_text('#nUpc')); before_upd = int(await pg.inner_text('#nUpd'))
         await pg.click(f'tr[data-open="{tgt["id"]}"]'); await pg.wait_for_timeout(500)
         fields = await pg.evaluate("[...document.querySelectorAll('#dBody .ed')].map(e=>e.dataset.f)")
@@ -322,7 +327,11 @@ async def main():
         rec('F11', 'M3 13:48–14:26', 'Saved lead moves from To be Updated to Updated', (a_upc, a_upd) == (before_upc - 1, before_upd + 1), ((before_upc, before_upd), (a_upc, a_upd)))
         await set_view(pg, 'upd')
         row = next((r for r in await rows(pg) if r['id'] == tgt['id']), None)
-        rec('F12', 'M1 10:17 date of update', 'Last Updated = today by Head of Sales, revised counter +1', row and TODAY.strftime('%d %b %Y').lstrip('0') in row['lu'].lstrip('0') and 'Head of Sales' in row['lu'] and row['cnt'] == f"{int(tgt['cnt'][0]) + 1}/3", row)
+        rec('F12', 'M1 10:17 date of update', 'Last Updated = today by Head of Sales, revised counter +1', row and TODAY.strftime('%d %b %Y').lstrip('0') in row['lu'].lstrip('0') and 'Head of Sales' in row['lu'] and row['cnt'] == f"×{int(tgt['cnt'][1:] or 0) + 1}", (row, tgt['cnt']))
+        vexp = (TODAY - timedelta(days=1)).strftime('%d %b %Y')
+        rec('F12b', 'Jay 29 Oct', 'Date of Visit column shows the visit date saved in the Update panel', row and row['visit'] == vexp, (row and row['visit'], vexp))
+        hdrs = await pg.evaluate("[...document.querySelectorAll('#mainSecs thead th')].map(t=>t.textContent.trim())")
+        rec('F12c', 'Jay 29 Oct', 'Lead table has a sortable Date of Visit column after Next Follow-up', 'Date of Visit' in hdrs and hdrs.index('Date of Visit') == hdrs.index('Next Follow-up') + 1 and await pg.locator('th[data-sort=visit]').count() == 1, hdrs)
         await pg.click(f'tr[data-open="{tgt["id"]}"]'); await pg.wait_for_timeout(500)
         hist = await pg.inner_text('#dBody .dhist .hist')
         rec('F13', 'M2 12:16–12:35 view comments', 'History shows the new entry with remark and changed fields', 'test remark' in hist and 'Revised Date' in hist and 'Site Status' in hist, hist[:160])
@@ -339,10 +348,10 @@ async def main():
         rec('F16', 'A11y', 'Esc closes the panel and unlocks scroll', await pg.locator('#drawer').count() == 0 and not await pg.evaluate("document.documentElement.classList.contains('lock')"))
         # maxed lead
         await set_view(pg, 'all'); await all_statuses(pg)
-        mx = next((r for r in await rows(pg) if r['cnt'] == '3/3'), None)
+        mx = next((r for r in await rows(pg) if r['cnt'] and int(r['cnt'][1:]) >= 3 and r['status'] not in ('Won', 'Lost')), None)
         if mx:
             await pg.click(f'tr[data-open="{mx["id"]}"]'); await pg.wait_for_timeout(500)
-            rec('F17', 'Legacy CRM rule (max 3)', 'Revised date locked after 3 changes', await pg.is_disabled('#dBody [data-f=revised]') and 'limit reached' in await pg.inner_text('#dBody'))
+            rec('F17', 'Jay 29 Oct (no limit)', 'Revised date still editable after 3+ changes; panel says there is no limit', not await pg.is_disabled('#dBody [data-f=revised]') and 'limit reached' not in (await pg.inner_text('#dBody')).lower() and 'No limit' in await pg.inner_text('#revCount'), mx['cnt'])
             await pg.click('#drawer', position={'x': 30, 'y': 300}); await pg.wait_for_timeout(450)
             rec('F18', 'UX', 'Click on backdrop closes the panel', await pg.locator('#drawer').count() == 0)
         # closed lead read-only for management

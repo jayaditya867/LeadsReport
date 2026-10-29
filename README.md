@@ -47,11 +47,12 @@ src/
 ## Business rules kept from the mockup
 
 - Editing only for management (`ManagementGroup`); sales users see a read-only panel.
-- Revised date (expected PO): remark required on change, no past dates, max **3** changes.
+- Revised date (expected PO): remark required on change, no past dates, **no limit** on the number of changes — the count is shown (×n) and every update is logged (who, when, each field from → to, remark) in the lead's history.
+- Lead table footer shows the lead count and **Total** Est. Revenue (₹) of the current tab.
 - Tabs: **To be Updated** · **Updated** · **All**. A lead moves to *Updated* once management saves an update through this report (no weekly reset — client, 29 Oct).
 - Status filter default *Order Acceptance + Propose* is saved; Lead Owner and Search are never saved.
 - Single page (no Team Summary / report-type tabs). Due status and due-date chips are based on the Revised Date (PO).
-- No currency switch: amounts are shown per currency and AED/INR/USD are never summed together.
+- **INR only**: the report includes only leads whose currency is INR (Rupees); leads in AED / USD are left out (never converted). Set by `REPORT_CURRENCY` in `data/constants.ts`.
 
 ## Testing
 

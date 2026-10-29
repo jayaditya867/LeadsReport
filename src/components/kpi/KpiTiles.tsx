@@ -85,7 +85,7 @@ function StageTile({ index, label, status, icon, tone, ribbon, rows, grown, play
   const r = rows.filter((l) => l.status === status);
   const u = r.filter(isUpdated);
   const n = r.length - u.length;
-  // amounts are never added across currencies: one total per currency; average only when there is a single currency
+  // INR-only report, so one total; the per-currency guard stays in case other data slips through
   const totals = totalsLabel(r);
   const curs = [...new Set(r.map((l) => l.cur))];
   const avg = curs.length === 1 ? moneyShort(sum(r) / r.length, curs[0]) : '';

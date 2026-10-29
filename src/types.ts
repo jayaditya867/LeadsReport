@@ -39,7 +39,7 @@ export interface Lead {
   /** Revised (expected PO) date, yyyy-mm-dd or '' */
   revised: string;
   follow: string;
-  /** Number of times the revised date was changed (max 3). */
+  /** Number of times the revised date was changed (no limit; each change is in `log`). */
   counter: number;
   created: string;
   reviewed: string | null;

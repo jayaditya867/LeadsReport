@@ -58,7 +58,10 @@ const SPEC: SpecRow[] = [
 export function buildDemoLeads(): Lead[] {
   let seq = 1000;
   return SPEC.map((s, i) => {
-    const [region, state, cur, status, stageIdx, value, revOff, folOff, counter, createdOff, reviewedDay, site, floor, remark] = s;
+    const [region, state, specCur, status, stageIdx, specValue, revOff, folOff, counter, createdOff, reviewedDay, site, floor, remark] = s;
+    // illustrative data is all in rupees (report is INR-only); old AED/USD sample amounts re-priced to plausible ₹ values
+    const cur: Currency = 'INR';
+    const value = specCur === 'INR' ? specValue : Math.round((specValue * (specCur === 'USD' ? 84 : 23)) / 10000) * 10000;
     const revised = revOff == null ? '' : iso(addDays(TODAY, revOff));
     const log: LogEntry[] = [];
     // earlier revised-date changes (each with its mandatory remark)
